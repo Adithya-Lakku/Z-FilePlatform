@@ -1,15 +1,26 @@
 FROM python:3.13-slim
 
 WORKDIR /app
+# System dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        tesseract-ocr \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
-RUN pip install --no-cache-dir -r requirements.txt
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
 
-RUN apt-get update && apt-get install -y tesseract-ocr    
-#assuming its apt
+COPY pyproject.toml uv.lock ./
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-install-project
 
 COPY . .
-EXPOSE 8000
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked
+
 
 

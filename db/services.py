@@ -32,27 +32,16 @@ def get_db():
         db.close()
 
 
-async def create_file(files: Annotated[ list[UploadFile],File(...)], db:"Session", parent_folder_id: str | None = None) :   #-> _schemas.File
-    
+async def create_file(files: Annotated[ list[UploadFile],File(...)], db:"Session", parent_folder_id: str | None = None) -> list[_models.File]:
+    created_files = []
     for file in files:
-    
         file_id = str(uuid.uuid4())
-
-        original_name = Path(file.filename).name  #to avoid pathinjection
-        
-
-
+        original_name = Path(file.filename).name  # to avoid path injection
         save_path = UPLOAD_DIR / f"{file_id}_{original_name}"
-
-
-
-            
-        
 
         with open(save_path,"wb") as f:
             while chunk := await file.read(12500 * 12500):  # 100 mb reads (can be increased for faster)
                 f.write(chunk)
-
 
         file_size_bytes = 0
         try:
@@ -62,24 +51,23 @@ async def create_file(files: Annotated[ list[UploadFile],File(...)], db:"Session
         except FileNotFoundError:
             print("The specified file does not exist.")
 
-
         parent_uuid = uuid.UUID(parent_folder_id) if parent_folder_id else None
 
         dbfile = _models.File(
-        id=file_id,
-        filename=original_name,
-        filepath=str(save_path),
-        size_bytes=file_size_bytes,
-        file_metadata={},
-        parent_folder_id=parent_uuid
+            id=file_id,
+            filename=original_name,
+            filepath=str(save_path),
+            size_bytes=file_size_bytes,
+            file_metadata={},
+            parent_folder_id=parent_uuid
         )
 
         db.add(dbfile)
         db.commit()
         db.refresh(dbfile)
+        created_files.append(dbfile)
 
-        _schemas.File.model_validate(dbfile)
-     #i dont know if this right
+    return created_files
 
 def get_file_path(file_id:str,db:"Session")->str:
 
@@ -238,5 +226,142 @@ def updateMetadata(file_id:str,updated_metadata:JSON,db:"Session"):
     db.refresh(dbfile)
 
     return _schemas.File.model_validate(dbfile)
+
+
+def get_folder_by_id(folder_id: str | uuid.UUID | None, db: "Session") -> _models.Folder | None:
+    if not folder_id:
+        return None
+    try:
+        folder_uuid = uuid.UUID(str(folder_id)) if isinstance(folder_id, str) else folder_id
+    except (ValueError, AttributeError):
+        return None
+    return db.query(_models.Folder).filter(_models.Folder.id == folder_uuid).first()
+
+
+def get_breadcrumbs(folder_id: str | uuid.UUID | None, db: "Session") -> list[dict]:
+    breadcrumbs = [{"name": "Root", "id": None}]
+    if not folder_id:
+        return breadcrumbs
+
+    folder = get_folder_by_id(folder_id, db)
+    if not folder:
+        return breadcrumbs
+
+    trail = []
+    current = folder
+    while current is not None:
+        trail.append({"name": current.name, "id": str(current.id)})
+        if current.parent_folder_id:
+            current = get_folder_by_id(current.parent_folder_id, db)
+        else:
+            current = None
+
+    trail.reverse()
+    breadcrumbs.extend(trail)
+    return breadcrumbs
+
+
+def rename_folder(folder_id: str | uuid.UUID, new_name: str, db: "Session") -> _models.Folder:
+    folder = get_folder_by_id(folder_id, db)
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found")
+
+    if not new_name or "/" in new_name:
+        raise HTTPException(status_code=400, detail="Invalid folder name")
+
+    # Check uniqueness in same parent
+    existing = db.query(_models.Folder).filter(
+        _models.Folder.parent_folder_id == folder.parent_folder_id,
+        _models.Folder.name == new_name,
+        _models.Folder.id != folder.id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="A folder with that name already exists here")
+
+    folder.name = new_name
+    db.commit()
+    db.refresh(folder)
+    return folder
+
+
+def move_folder(folder_id: str | uuid.UUID, new_parent_folder_id: str | uuid.UUID | None, db: "Session") -> _models.Folder:
+    folder = get_folder_by_id(folder_id, db)
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found")
+
+    target_parent_uuid = None
+    if new_parent_folder_id:
+        try:
+            target_parent_uuid = uuid.UUID(str(new_parent_folder_id)) if isinstance(new_parent_folder_id, str) else new_parent_folder_id
+        except (ValueError, AttributeError):
+            raise HTTPException(status_code=400, detail="Invalid target folder ID")
+
+        target = get_folder_by_id(target_parent_uuid, db)
+        if not target:
+            raise HTTPException(status_code=404, detail="Target folder not found")
+
+        # Prevent moving folder into itself or its descendants
+        check = target
+        while check:
+            if check.id == folder.id:
+                raise HTTPException(status_code=400, detail="Cannot move a folder into its own subtree")
+            if check.parent_folder_id:
+                check = get_folder_by_id(check.parent_folder_id, db)
+            else:
+                break
+
+    # Check uniqueness in new parent
+    existing = db.query(_models.Folder).filter(
+        _models.Folder.parent_folder_id == target_parent_uuid,
+        _models.Folder.name == folder.name,
+        _models.Folder.id != folder.id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="A folder with the same name already exists in the target location")
+
+    folder.parent_folder_id = target_parent_uuid
+    db.commit()
+    db.refresh(folder)
+    return folder
+
+
+def get_file_by_id(file_id: str, db: "Session") -> _models.File:
+    dbfile = db.query(_models.File).filter(_models.File.id == file_id).first()
+    if not dbfile:
+        raise HTTPException(status_code=404, detail="File not found")
+    return dbfile
+
+
+def rename_file(file_id: str, new_name: str, db: "Session") -> _models.File:
+    dbfile = get_file_by_id(file_id, db)
+
+    if not new_name or "/" in new_name:
+        raise HTTPException(status_code=400, detail="Invalid file name")
+
+    dbfile.filename = new_name
+    db.commit()
+    db.refresh(dbfile)
+    return dbfile
+
+
+def move_file(file_id: str, new_parent_folder_id: str | uuid.UUID | None, db: "Session") -> _models.File:
+    dbfile = get_file_by_id(file_id, db)
+
+    target_parent_uuid = None
+    if new_parent_folder_id:
+        try:
+            target_parent_uuid = uuid.UUID(str(new_parent_folder_id)) if isinstance(new_parent_folder_id, str) else new_parent_folder_id
+        except (ValueError, AttributeError):
+            raise HTTPException(status_code=400, detail="Invalid target folder ID")
+
+        target_folder = get_folder_by_id(target_parent_uuid, db)
+        if not target_folder:
+            raise HTTPException(status_code=404, detail="Target folder not found")
+
+    dbfile.parent_folder_id = target_parent_uuid
+    db.commit()
+    db.refresh(dbfile)
+    return dbfile
+
 
 

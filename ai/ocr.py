@@ -17,6 +17,7 @@ def extract_text(file_id:str,db)->str:
         
     )
 
+    extracted_text = result.stdout
     # Decode bytes to string properly
     if isinstance(extracted_text, bytes):
         extracted_text = extracted_text.decode("utf-8", errors="ignore")
@@ -24,8 +25,6 @@ def extract_text(file_id:str,db)->str:
     # Now update metadata safely
     _services.updateMetadata(file_id, {"ocr_text": extracted_text}, db)
 
-    #_services.updateMetadata(file_id, {"ocr_text": str(extracted_text)}, db)
-
-    return result.stdout if result.returncode==0 else ""
+    return extracted_text if result.returncode == 0 else ""
 
 

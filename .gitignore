@@ -1,3 +1,8 @@
 uploads/
-__pycache__/
+
 sandbox/
+.git
+.venv
+__pycache__
+*.pyc
+.env
