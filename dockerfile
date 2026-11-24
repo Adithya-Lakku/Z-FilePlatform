@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.15-slim
 
 WORKDIR /app
 
@@ -18,3 +18,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync
 
 CMD ["uv", "run", "--no-sync", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+
+#son , i got rid of teseract tf?
