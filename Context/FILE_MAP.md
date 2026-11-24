@@ -25,14 +25,30 @@ This document maps application features to their implementation locations across
 
 ### Backend (`FileServerProject/`)
 - [`main.py`](file:///home/zacro/Desktop/testingold/FileServerProject/main.py):
-  - Application entrypoint, FastAPI instance, lifespan context manager.
-  - HTTP routing for all file, folder, AI, and home page requests.
+  - Application entrypoint, FastAPI instance, lifespan context manager, CORS, Prometheus, SPA serving.
+  - Delegates all routing to `api/router.py` via `app.include_router(router)`.
 - [`requirements.txt`](file:///home/zacro/Desktop/testingold/FileServerProject/requirements.txt):
   - Python dependency specifications.
 - [`dockerfile`](file:///home/zacro/Desktop/testingold/FileServerProject/dockerfile):
   - Container build specification based on `python:3.13-slim` with `tesseract-ocr`.
 - [`docker-compose.yml`](file:///home/zacro/Desktop/testingold/FileServerProject/docker-compose.yml):
   - Multi-service definition: `fastapi_app`, `db` (Postgres), `ollama`, `prometheus`, `grafana`.
+
+### API Routing Layer (`FileServerProject/api/`)
+- [`api/router.py`](file:///home/zacro/Desktop/testingold/FileServerProject/api/router.py):
+  - Master router. Assembles JSON API (`/api/...`) and Jinja template sub-routers into a single include.
+- [`api/deps.py`](file:///home/zacro/Desktop/testingold/FileServerProject/api/deps.py):
+  - Shared dependencies (`DbSession` annotated type) used by all route modules.
+- [`api/schemas.py`](file:///home/zacro/Desktop/testingold/FileServerProject/api/schemas.py):
+  - Pydantic request models: `FolderCreateRequest`, `RenameRequest`, `MoveRequest`.
+- [`api/folders.py`](file:///home/zacro/Desktop/testingold/FileServerProject/api/folders.py):
+  - JSON API routes for folder CRUD — prefix `/api/folders`, tag `folders`.
+- [`api/files.py`](file:///home/zacro/Desktop/testingold/FileServerProject/api/files.py):
+  - JSON API routes for file CRUD — prefix `/api/files`, tag `files`.
+- [`api/ai.py`](file:///home/zacro/Desktop/testingold/FileServerProject/api/ai.py):
+  - JSON API routes for AI features (summarization, OCR) — prefix `/api/ai`, tag `ai`.
+- [`api/templates.py`](file:///home/zacro/Desktop/testingold/FileServerProject/api/templates.py):
+  - Jinja-rendered template routes (original HTML frontend). All legacy server-side endpoints preserved.
 
 ### Database Layer (`FileServerProject/db/`)
 - [`db/database.py`](file:///home/zacro/Desktop/testingold/FileServerProject/db/database.py):

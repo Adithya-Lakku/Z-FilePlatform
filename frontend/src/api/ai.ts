@@ -17,7 +17,7 @@ interface OcrResponse {
  * The Ollama service must be running with the gemma3:4b model pulled.
  */
 export async function summarizeFile(fileId: string): Promise<SummarizeResponse> {
-  const res = await api.post<SummarizeResponse>(`/summarize/${fileId}`);
+  const res = await api.post<SummarizeResponse>(`/ai/summarize/${fileId}`);
   return res.data;
 }
 
@@ -27,6 +27,6 @@ export async function summarizeFile(fileId: string): Promise<SummarizeResponse> 
  * This will likely fail until the bug is fixed.
  */
 export async function ocrFile(fileId: string): Promise<OcrResponse> {
-  const res = await api.post<OcrResponse>(`/ocr/${fileId}`);
+  const res = await api.post<OcrResponse>(`ai/ocr/${fileId}`);
   return res.data;
 }

@@ -4,6 +4,38 @@ This changelog records feature-level evolutions, architectural changes, and oper
 
 ---
 
+## 2026-11-24 — API Router Refactor (main.py → api/ package)
+
+### Changes
+- Created `api/` package with modular route files following the FastAPI `APIRouter` pattern:
+  - [`api/router.py`](file:///home/zacro/Desktop/testingold/FileServerProject/api/router.py) — master router that assembles all sub-routers.
+  - [`api/folders.py`](file:///home/zacro/Desktop/testingold/FileServerProject/api/folders.py) — JSON folder CRUD (`/api/folders`).
+  - [`api/files.py`](file:///home/zacro/Desktop/testingold/FileServerProject/api/files.py) — JSON file CRUD (`/api/files`).
+  - [`api/ai.py`](file:///home/zacro/Desktop/testingold/FileServerProject/api/ai.py) — JSON AI endpoints (`/api/ai`).
+  - [`api/templates.py`](file:///home/zacro/Desktop/testingold/FileServerProject/api/templates.py) — all Jinja template routes (unchanged behavior).
+  - [`api/deps.py`](file:///home/zacro/Desktop/testingold/FileServerProject/api/deps.py) — shared `DbSession` dependency.
+  - [`api/schemas.py`](file:///home/zacro/Desktop/testingold/FileServerProject/api/schemas.py) — Pydantic request models extracted from `main.py`.
+- Reduced [`main.py`](file:///home/zacro/Desktop/testingold/FileServerProject/main.py) from **557 lines → 65 lines**. It now only handles app creation, middleware, lifespan, and SPA serving.
+- Updated `Context/FILE_MAP.md` and `Context/ARCHITECTURE.md` to reflect the new routing layer.
+
+### Motivation
+- Original `main.py` was a single 557-line monolith mixing app config, Jinja routes, JSON API routes, and Pydantic models.
+- Followed the routing pattern from `sandbox/routertest/` as the reference architecture.
+
+### Route Mapping (all URLs unchanged)
+| Module | Prefix | Endpoints |
+|---|---|---|
+| `api/folders.py` | `/api/folders` | `GET /contents`, `POST /`, `DELETE /{id}`, `PATCH /{id}/rename`, `PATCH /{id}/move` |
+| `api/files.py` | `/api/files` | `POST /upload`, `GET /{id}`, `GET /{id}/download`, `DELETE /{id}`, `PATCH /{id}/rename`, `PATCH /{id}/move` |
+| `api/ai.py` | `/api/ai` | `POST /summarize/{id}`, `POST /ocr/{id}` |
+| `api/templates.py` | *(root)* | `GET /`, `POST /upload`, `GET /files`, `POST /folders`, `POST /download`, `POST /delete`, `POST /summary`, `POST /ocr` |
+
+### Verification
+- All Python files pass `py_compile` syntax checks.
+- No URL changes — all existing frontend and template links remain functional.
+
+---
+
 ## 2026-10-21 — Fix OCR Module & Database Connection Fallback
  
 ### Changes

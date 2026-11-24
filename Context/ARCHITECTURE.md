@@ -18,9 +18,13 @@ This document describes the architectural topology, component interactions, data
                       +---------------------------------------+
                       |        FastAPI App Container          |
                       |              (main.py)                |
-                      |  - Routing & Request Handlers         |
-                      |  - Lifespan & DB Init                 |
-                      |  - Prometheus Instrumentation         |
+                      |  - Lifespan, CORS, Prometheus         |
+                      |  - Includes api/router.py             |
+                      |    ├─ api/templates.py (Jinja HTML)   |
+                      |    └─ /api prefix:                    |
+                      |       ├─ api/folders.py               |
+                      |       ├─ api/files.py                 |
+                      |       └─ api/ai.py                    |
                       +---------+-------------------+---------+
                                 |                   |
                  +--------------+                   +-------------+
